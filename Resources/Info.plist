@@ -6,6 +6,8 @@
 	<string>ClickLocker</string>
 	<key>CFBundleExecutable</key>
 	<string>ClickLocker</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.joelintveld.clicklocker</string>
 	<key>CFBundleInfoDictionaryVersion</key>
