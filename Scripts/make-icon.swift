@@ -101,26 +101,34 @@ func drawPointer(size: CGFloat, centre: CGPoint, context: CGContext) {
     }
     path.close()
 
-    // Centre the arrow on its own bounding box rather than on its tip, otherwise
-    // it hangs into the lower right of the ring. Centring on the polygon's
-    // centroid instead was tried and looks worse: it drags the arrow up and to
-    // the left, out of the middle of the ring.
-    let bounds = path.bounds
+    // The macOS pointer is black with a white border, but only where there is
+    // room for it. At 32 pt that border works out under one and a half pixels
+    // and the black fill sinks into the dark plate, leaving a grey smudge; a
+    // plain white arrow reads far better down there.
+    let bordered = size >= 64
+    let border = bordered ? height * Layout.pointerBorder : 0
+    if bordered { path.lineWidth = border }
+
+    // Centre on the ink, not on the path. Those are not the same thing: the tip
+    // and the tail are sharp corners, and a mitred join runs the border well
+    // past half a line width there. Anchoring on the path bounds left the arrow
+    // sitting up and to the right of the ring's centre.
+    var ink = path.cgPath.boundingBoxOfPath
+    if bordered {
+        let stroked = path.cgPath.copy(
+            strokingWithWidth: border, lineCap: .butt, lineJoin: .miter, miterLimit: 10
+        )
+        ink = ink.union(stroked.boundingBoxOfPath)
+    }
     path.transform(using: AffineTransform(
         m11: 1, m12: 0, m21: 0, m22: 1,
-        tX: centre.x - bounds.midX,
-        tY: centre.y - bounds.midY
+        tX: centre.x - ink.midX,
+        tY: centre.y - ink.midY
     ))
 
-    // The macOS pointer: black with a white border. Stroking first and filling
-    // over it leaves the border entirely outside the black, the way a cursor
-    // looks.
-    //
-    // Only where there is room for it. At 32 pt the border comes out under one
-    // and a half pixels and the black fill sinks into the dark plate, leaving a
-    // grey smudge; a plain white arrow reads far better down there.
-    if size >= 64 {
-        path.lineWidth = height * Layout.pointerBorder
+    if bordered {
+        // Stroking first and filling over it leaves the border entirely outside
+        // the black, the way a cursor looks.
         NSColor.white.setStroke()
         path.stroke()
         NSColor.black.setFill()
