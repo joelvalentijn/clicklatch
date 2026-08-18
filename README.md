@@ -22,11 +22,17 @@ apps that arrive over the internet, so building it yourself is the honest path:
 ```bash
 git clone https://github.com/joelintveld/clicklocker.git
 cd clicklocker
+./Scripts/create-signing-certificate.sh
 ./Scripts/bundle.sh --install --run
 ```
 
-That builds `build/ClickLocker.app`, copies it to `/Applications` and launches it. Leave out
-`--install` to keep it inside the project folder — but note that "Open at login" and the
+The first script makes a self-signed code signing certificate, once. Skip it and everything still
+builds and runs, but the signature is then ad hoc — which means its identity is the hash of that
+one build, so **macOS drops the Accessibility permission on every rebuild** and the app cannot
+update itself. With the certificate, the identity stays the same and both problems go away.
+
+The second script builds `build/ClickLocker.app`, copies it to `/Applications` and launches it.
+Leave out `--install` to keep it inside the project folder — but note that "Open at login" and the
 Accessibility permission both work best from a path that does not move.
 
 ## First run: the Accessibility permission
@@ -51,6 +57,13 @@ Open them from the menu bar icon. They are split over four tabs.
   long your last press actually was, in milliseconds.
 - **Open at login** — registers ClickLocker as a login item through `SMAppService`. macOS may ask
   you to approve it under General → Login Items.
+- **Updates** — shows the running version, checks GitHub for a newer release once a day when
+  switched on, and downloads and installs it on request.
+
+Every setting that holds a value has a small ⟲ next to it that puts that one setting back to its
+factory value, greyed out while it already is. **Restore Factory Settings** at the bottom of the
+Advanced tab does the lot at once, leaving only the master switch and the login item as they are —
+those say whether the app is running, which is not a matter of taste.
 
 **Ring** — a live preview at the top shows every change straight away, mid-press on a dark
 background and locked on a light one.
@@ -60,6 +73,9 @@ background and locked on a light one.
 - **Colour**, **Thickness** (1–8 pt) and **Size** (radius 8–30 pt).
 - **Dark outline and shadow** — on by default. It is what keeps a light ring readable on a light
   background; without it a white ring all but disappears on a white window.
+- **Swell briefly when locking** — on by default. The line thickens to 1.7× and back over 220 ms
+  at the moment the button locks, which is what makes the change register in the corner of your
+  eye.
 - **Delay** — how long you have to hold before the ring turns up at all, 0 to 500 ms. Raise it if
   ordinary clicks make it flash.
 - **Fade** — how gently it fades in and out, 0 to 400 ms. At zero it simply appears.
@@ -101,6 +117,27 @@ drawing it never slows the event tap down.
 When the app quits, gets switched off, or loses the permission, it always sends a final `mouseUp`.
 A mouse button can never be left hanging.
 
+## Updating itself
+
+ClickLocker asks the GitHub releases API for the latest release, compares the tag with its own
+version and, on request, downloads the archive and swaps itself out. A detached script waits for
+the app to quit, moves the old bundle aside, puts the new one in place — restoring the old one if
+that fails — and starts it again.
+
+The one rule that makes this safe: an update is installed **only** when the downloaded bundle
+satisfies the running app's designated requirement. Whoever manages to serve a different feed still
+cannot get code onto the machine that was not signed with the same key. A consequence worth knowing
+is that an ad hoc signed copy can never update itself: its requirement is the hash of that single
+build, which no other build can match. The app says exactly that instead of installing something it
+could not verify.
+
+Downloads made by the app do not carry a quarantine flag, unlike ones made by a browser, so
+Gatekeeper does not step in — which is why this works for a build Apple has never notarised.
+
+To publish a release: bump `CFBundleShortVersionString` in `Resources/Info.plist`, run
+`./Scripts/make-release.sh`, and upload the resulting zip as an asset on a GitHub release whose tag
+matches that version.
+
 ## Limitations
 
 - Apps that read the button state directly (`NSEvent.pressedMouseButtons`) instead of following
@@ -117,6 +154,7 @@ Sources/ClickLocker/
   CursorOverlay.swift            the ring around the pointer, and how it is drawn
   ColorHex.swift                 colour ↔ hex conversion for stored settings
   SoundFeedback.swift            the lock and release sounds
+  Updater.swift                  checking, downloading, verifying and swapping
   LaunchAtLogin.swift            login item registration
   AppModel.swift                 ties settings, permission, engine and ring together
   Preferences.swift              settings in UserDefaults
@@ -125,7 +163,9 @@ Sources/ClickLocker/
   SettingsView.swift             settings window
   TestPadView.swift              practice pad with live status
 Resources/Info.plist             bundle metadata (LSUIElement)
-Scripts/bundle.sh                build, bundle, sign ad hoc, install
+Scripts/create-signing-certificate.sh   one-off self-signed identity
+Scripts/bundle.sh                build, bundle, sign, install
+Scripts/make-release.sh          archive a build for a GitHub release
 ```
 
 ## Contributing

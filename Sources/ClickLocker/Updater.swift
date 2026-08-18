@@ -221,7 +221,9 @@ final class Updater {
         NSApp.terminate(nil)
     }
 
-    private static func launchSwapScript(replacing current: URL, with replacement: URL) throws {
+    /// Not private so the swap can be exercised against throwaway bundles: it is
+    /// the one step that could otherwise leave the machine without the app.
+    static func launchSwapScript(replacing current: URL, with replacement: URL) throws {
         let script = """
             #!/bin/bash
             # Written by ClickLocker to replace itself; safe to delete.

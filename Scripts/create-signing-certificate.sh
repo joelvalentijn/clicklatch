@@ -49,24 +49,32 @@ EOF
 openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 	-keyout "$WORK/key.pem" -out "$WORK/cert.pem" -config "$WORK/openssl.cnf" 2>/dev/null
 
+# The legacy algorithms are not a nicety: OpenSSL 3 defaults to AES-256-CBC with
+# SHA-256, which macOS' own security tool cannot read back ("MAC verification
+# failed"). An empty password trips the same check, hence a throwaway one.
 openssl pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-	-out "$WORK/identity.p12" -passout pass: -name "$NAME"
+	-out "$WORK/identity.p12" -passout pass:clicklocker -name "$NAME" \
+	-keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1
 
 echo "==> Importing into the login keychain"
 # -T lets codesign use the key without asking every single time.
-security import "$WORK/identity.p12" -k "$KEYCHAIN" -P "" -T /usr/bin/codesign
+security import "$WORK/identity.p12" -k "$KEYCHAIN" -P clicklocker -T /usr/bin/codesign
 
-echo "==> Marking the certificate as trusted"
-echo "    macOS will ask for your account password now. That prompt is the one step"
-echo "    that cannot be scripted."
-if ! security add-trusted-cert -d -r trustRoot -p codeSign -k "$KEYCHAIN" "$WORK/cert.pem"; then
-	cat <<EOF
+if security find-identity -v -p codesigning | grep -q "$NAME"; then
+	echo "==> Usable for code signing straight away"
+else
+	echo "==> Marking the certificate as trusted"
+	echo "    macOS will ask for your account password now. That prompt is the one step"
+	echo "    that cannot be scripted."
+	if ! security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$WORK/cert.pem"; then
+		cat <<EOF
 
 The certificate was imported but NOT trusted, so codesign will refuse to use it.
 Either run this script again and confirm the password prompt, or open Keychain
 Access, find "$NAME" under login, and set "Code Signing" to "Always Trust".
 EOF
-	exit 1
+		exit 1
+	fi
 fi
 
 echo
