@@ -22,9 +22,11 @@ enum Layout {
     static let ringRadius: CGFloat = 0.25
     static let ringStroke: CGFloat = 0.05
     /// Length of the pointer from tip to tail. Kept small enough that the arrow
-    /// sits inside the ring with air around it; any larger and the two shapes
-    /// collide into a blob at small sizes.
-    static let pointerHeight: CGFloat = 0.34
+    /// and its white border sit inside the ring with air around them: tip and
+    /// tail run diagonally, so they reach further than the height suggests.
+    static let pointerHeight: CGFloat = 0.27
+    /// White border around the black arrow, as a fraction of its height.
+    static let pointerBorder: CGFloat = 0.16
 }
 
 func drawIcon(size: CGFloat, in context: CGContext) {
@@ -100,7 +102,9 @@ func drawPointer(size: CGFloat, centre: CGPoint, context: CGContext) {
     path.close()
 
     // Centre the arrow on its own bounding box rather than on its tip, otherwise
-    // it hangs into the lower right of the ring.
+    // it hangs into the lower right of the ring. Centring on the polygon's
+    // centroid instead was tried and looks worse: it drags the arrow up and to
+    // the left, out of the middle of the ring.
     let bounds = path.bounds
     path.transform(using: AffineTransform(
         m11: 1, m12: 0, m21: 0, m22: 1,
@@ -108,10 +112,23 @@ func drawPointer(size: CGFloat, centre: CGPoint, context: CGContext) {
         tY: centre.y - bounds.midY
     ))
 
-    // Plain white on a dark plate: no outline needed, and none of the muddiness
-    // an outline brings at 32 pt and below.
-    NSColor.white.setFill()
-    path.fill()
+    // The macOS pointer: black with a white border. Stroking first and filling
+    // over it leaves the border entirely outside the black, the way a cursor
+    // looks.
+    //
+    // Only where there is room for it. At 32 pt the border comes out under one
+    // and a half pixels and the black fill sinks into the dark plate, leaving a
+    // grey smudge; a plain white arrow reads far better down there.
+    if size >= 64 {
+        path.lineWidth = height * Layout.pointerBorder
+        NSColor.white.setStroke()
+        path.stroke()
+        NSColor.black.setFill()
+        path.fill()
+    } else {
+        NSColor.white.setFill()
+        path.fill()
+    }
 }
 
 func renderPNG(size: CGFloat) -> Data? {
