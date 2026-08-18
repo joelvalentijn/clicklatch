@@ -20,7 +20,7 @@ There is no prebuilt download. The app is signed ad hoc, and Gatekeeper refuses 
 apps that arrive over the internet, so building it yourself is the honest path:
 
 ```bash
-git clone https://github.com/joelintveld/clicklocker.git
+git clone https://github.com/joelvalentijn/clicklocker.git
 cd clicklocker
 ./Scripts/create-signing-certificate.sh
 ./Scripts/bundle.sh --install --run
@@ -133,6 +133,11 @@ could not verify.
 
 Downloads made by the app do not carry a quarantine flag, unlike ones made by a browser, so
 Gatekeeper does not step in — which is why this works for a build Apple has never notarised.
+
+That same rule has a consequence if you build ClickLocker yourself: your copy is signed with *your*
+certificate, so it will refuse the official release, which carries a different one. Updating in
+place works within your own builds; to move to an official release, build it from the new source or
+replace the app by hand.
 
 To publish a release: bump `CFBundleShortVersionString` in `Resources/Info.plist`, run
 `./Scripts/make-release.sh`, and upload the resulting zip as an asset on a GitHub release whose tag

@@ -30,7 +30,7 @@ final class Updater {
     /// Where releases live. Overridable through the `updateFeedURL` default, which
     /// is what makes the whole chain testable before a real release exists.
     static let defaultFeedURL =
-        "https://api.github.com/repos/joelintveld/clicklocker/releases/latest"
+        "https://api.github.com/repos/joelvalentijn/clicklocker/releases/latest"
 
     private enum Marker {
         static let previousVersion = "updatePreviousVersion"
