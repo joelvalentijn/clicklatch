@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !model.permission.isTrusted && model.preferences.enabled {
                 model.permission.request()
             }
+            model.handleLaunch()
         }
     }
 

@@ -26,6 +26,12 @@ struct MenuBarView: View {
             Divider()
         }
 
+        Button("Check for Updates…") {
+            NSApp.activate()
+            openSettings()
+            Task { await model.updater.check() }
+        }
+
         Button("Settings…") {
             NSApp.activate()
             openSettings()

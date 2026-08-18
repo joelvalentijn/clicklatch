@@ -36,6 +36,24 @@ struct SettingsView: View {
     }
 }
 
+/// Puts one setting back to its factory value. Greyed out while it already is.
+private struct ResetButton<Value: Equatable>: View {
+
+    @Binding var value: Value
+    let defaultValue: Value
+
+    var body: some View {
+        Button {
+            value = defaultValue
+        } label: {
+            Image(systemName: "arrow.uturn.backward")
+        }
+        .buttonStyle(.borderless)
+        .disabled(value == defaultValue)
+        .help("Reset to default")
+    }
+}
+
 // MARK: - General
 
 private struct GeneralTab: View {
@@ -79,8 +97,17 @@ private struct GeneralTab: View {
                 }
 
                 LabeledContent("Threshold") {
-                    Text("\(Int((preferences.holdDuration * 1000).rounded())) ms")
-                        .monospacedDigit()
+                    HStack {
+                        Text("\(Int((preferences.holdDuration * 1000).rounded())) ms")
+                            .monospacedDigit()
+                        ResetButton(
+                            value: Binding(
+                                get: { preferences.holdDuration },
+                                set: { preferences.holdDuration = $0 }
+                            ),
+                            defaultValue: Preferences.Defaults.holdDuration
+                        )
+                    }
                 }
             }
 
@@ -91,8 +118,76 @@ private struct GeneralTab: View {
             Section("Startup") {
                 LaunchAtLoginRow(launchAtLogin: model.launchAtLogin)
             }
+
+            Section("Updates") {
+                UpdatesRows()
+            }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct UpdatesRows: View {
+
+    @State private var model = AppModel.shared
+
+    var body: some View {
+        LabeledContent("Version") {
+            Text(model.updater.currentVersion).monospacedDigit()
+        }
+
+        Toggle("Check for updates automatically", isOn: Binding(
+            get: { model.preferences.checkForUpdates },
+            set: { model.preferences.checkForUpdates = $0 }
+        ))
+
+        HStack {
+            statusText
+                .font(.callout)
+                .foregroundStyle(isFailure ? .orange : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            actionButton
+        }
+    }
+
+    @ViewBuilder
+    private var statusText: some View {
+        switch model.updater.state {
+        case .idle: Text("Not checked yet.")
+        case .checking: Text("Checking…")
+        case .upToDate: Text("ClickLocker is up to date.")
+        case .available(let version): Text("Version \(version) is available.")
+        case .downloading(let progress): Text("Downloading… \(Int(progress * 100)) %")
+        case .readyToInstall(let version): Text("Version \(version) is ready to install.")
+        case .failed(let reason): Text(reason)
+        }
+    }
+
+    private var isFailure: Bool {
+        if case .failed = model.updater.state { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var actionButton: some View {
+        switch model.updater.state {
+        case .checking, .downloading:
+            ProgressView().controlSize(.small)
+        case .available:
+            Button("Download") {
+                Task { await model.updater.download() }
+            }
+        case .readyToInstall:
+            Button("Install & Restart") {
+                model.installUpdate()
+            }
+            .keyboardShortcut(.defaultAction)
+        default:
+            Button("Check Now") {
+                Task { await model.updater.check() }
+            }
+        }
     }
 }
 
@@ -116,10 +211,20 @@ private struct RingTab: View {
                     set: { preferences.showCursorRing = $0 }
                 ))
 
-                ColorPicker("Colour", selection: Binding(
-                    get: { Color(nsColor: NSColor.fromHex(preferences.ringColorHex) ?? .white) },
-                    set: { preferences.ringColorHex = NSColor($0).hexString }
-                ), supportsOpacity: true)
+                HStack {
+                    ColorPicker("Colour", selection: Binding(
+                        get: { Color(nsColor: NSColor.fromHex(preferences.ringColorHex) ?? .white) },
+                        set: { preferences.ringColorHex = NSColor($0).hexString }
+                    ), supportsOpacity: true)
+                    Spacer()
+                    ResetButton(
+                        value: Binding(
+                            get: { preferences.ringColorHex },
+                            set: { preferences.ringColorHex = $0 }
+                        ),
+                        defaultValue: Preferences.Defaults.ringColorHex
+                    )
+                }
 
                 LabeledContent("Thickness") {
                     HStack {
@@ -133,6 +238,13 @@ private struct RingTab: View {
                         Text("\(preferences.ringThickness, format: .number.precision(.fractionLength(1))) pt")
                             .monospacedDigit()
                             .frame(width: 52, alignment: .trailing)
+                        ResetButton(
+                            value: Binding(
+                                get: { preferences.ringThickness },
+                                set: { preferences.ringThickness = $0 }
+                            ),
+                            defaultValue: Preferences.Defaults.ringThickness
+                        )
                     }
                 }
 
@@ -148,6 +260,13 @@ private struct RingTab: View {
                         Text("\(Int(preferences.ringRadius.rounded())) pt")
                             .monospacedDigit()
                             .frame(width: 52, alignment: .trailing)
+                        ResetButton(
+                            value: Binding(
+                                get: { preferences.ringRadius },
+                                set: { preferences.ringRadius = $0 }
+                            ),
+                            defaultValue: Preferences.Defaults.ringRadius
+                        )
                     }
                 }
 
@@ -157,6 +276,16 @@ private struct RingTab: View {
                 ))
                 Text("Keeps a light ring readable on a light background. Turn it off for a "
                      + "cleaner look on dark screens.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Swell briefly when locking", isOn: Binding(
+                    get: { preferences.ringPulseOnLock },
+                    set: { preferences.ringPulseOnLock = $0 }
+                ))
+                Text("A short thickening at the moment the button locks, so you catch it out of "
+                     + "the corner of your eye.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -175,6 +304,13 @@ private struct RingTab: View {
                         Text("\(Int((preferences.ringAppearDelay * 1000).rounded())) ms")
                             .monospacedDigit()
                             .frame(width: 52, alignment: .trailing)
+                        ResetButton(
+                            value: Binding(
+                                get: { preferences.ringAppearDelay },
+                                set: { preferences.ringAppearDelay = $0 }
+                            ),
+                            defaultValue: Preferences.Defaults.ringAppearDelay
+                        )
                     }
                 }
                 Text("How long you have to hold before the ring turns up at all. Raise it if "
@@ -197,6 +333,13 @@ private struct RingTab: View {
                              : "\(Int((preferences.ringFadeDuration * 1000).rounded())) ms")
                             .monospacedDigit()
                             .frame(width: 52, alignment: .trailing)
+                        ResetButton(
+                            value: Binding(
+                                get: { preferences.ringFadeDuration },
+                                set: { preferences.ringFadeDuration = $0 }
+                            ),
+                            defaultValue: Preferences.Defaults.ringFadeDuration
+                        )
                     }
                 }
                 Text("How gently it fades in and out. At zero it simply appears.")
@@ -288,6 +431,13 @@ private struct SoundTab: View {
                         Text("\(Int((preferences.soundVolume * 100).rounded())) %")
                             .monospacedDigit()
                             .frame(width: 44, alignment: .trailing)
+                        ResetButton(
+                            value: Binding(
+                                get: { preferences.soundVolume },
+                                set: { preferences.soundVolume = $0 }
+                            ),
+                            defaultValue: Preferences.Defaults.soundVolume
+                        )
                     }
                 }
             }
@@ -298,14 +448,16 @@ private struct SoundTab: View {
                     selection: Binding(
                         get: { preferences.lockSoundName },
                         set: { preferences.lockSoundName = $0 }
-                    )
+                    ),
+                    defaultName: Preferences.Defaults.lockSoundName
                 )
                 soundRow(
                     title: "When releasing",
                     selection: Binding(
                         get: { preferences.releaseSoundName },
                         set: { preferences.releaseSoundName = $0 }
-                    )
+                    ),
+                    defaultName: Preferences.Defaults.releaseSoundName
                 )
             }
             .disabled(!preferences.soundEnabled)
@@ -313,7 +465,11 @@ private struct SoundTab: View {
         .formStyle(.grouped)
     }
 
-    private func soundRow(title: String, selection: Binding<String>) -> some View {
+    private func soundRow(
+        title: String,
+        selection: Binding<String>,
+        defaultName: String
+    ) -> some View {
         LabeledContent(title) {
             HStack {
                 Picker("", selection: selection) {
@@ -329,6 +485,7 @@ private struct SoundTab: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Preview")
+                ResetButton(value: selection, defaultValue: defaultName)
             }
         }
     }
@@ -345,6 +502,7 @@ private struct SoundTab: View {
 private struct AdvancedTab: View {
 
     @State private var model = AppModel.shared
+    @State private var confirmingReset = false
 
     private var preferences: Preferences { model.preferences }
 
@@ -369,16 +527,25 @@ private struct AdvancedTab: View {
                 ))
                 if preferences.cancelOnMovement {
                     LabeledContent("Slack") {
-                        Stepper(
-                            value: Binding(
-                                get: { preferences.movementTolerance },
-                                set: { preferences.movementTolerance = $0 }
-                            ),
-                            in: 1...50,
-                            step: 1
-                        ) {
-                            Text("\(Int(preferences.movementTolerance)) points")
-                                .monospacedDigit()
+                        HStack {
+                            Stepper(
+                                value: Binding(
+                                    get: { preferences.movementTolerance },
+                                    set: { preferences.movementTolerance = $0 }
+                                ),
+                                in: 1...50,
+                                step: 1
+                            ) {
+                                Text("\(Int(preferences.movementTolerance)) points")
+                                    .monospacedDigit()
+                            }
+                            ResetButton(
+                                value: Binding(
+                                    get: { preferences.movementTolerance },
+                                    set: { preferences.movementTolerance = $0 }
+                                ),
+                                defaultValue: Preferences.Defaults.movementTolerance
+                            )
                         }
                     }
                 }
@@ -401,18 +568,46 @@ private struct AdvancedTab: View {
                 ))
                 if preferences.autoReleaseEnabled {
                     LabeledContent("After") {
-                        Stepper(
-                            value: Binding(
-                                get: { preferences.autoReleaseAfter },
-                                set: { preferences.autoReleaseAfter = $0 }
-                            ),
-                            in: 2...120,
-                            step: 1
-                        ) {
-                            Text("\(Int(preferences.autoReleaseAfter)) seconds")
-                                .monospacedDigit()
+                        HStack {
+                            Stepper(
+                                value: Binding(
+                                    get: { preferences.autoReleaseAfter },
+                                    set: { preferences.autoReleaseAfter = $0 }
+                                ),
+                                in: 2...120,
+                                step: 1
+                            ) {
+                                Text("\(Int(preferences.autoReleaseAfter)) seconds")
+                                    .monospacedDigit()
+                            }
+                            ResetButton(
+                                value: Binding(
+                                    get: { preferences.autoReleaseAfter },
+                                    set: { preferences.autoReleaseAfter = $0 }
+                                ),
+                                defaultValue: Preferences.Defaults.autoReleaseAfter
+                            )
                         }
                     }
+                }
+            }
+
+            Section {
+                Button("Restore Factory Settings…", role: .destructive) {
+                    confirmingReset = true
+                }
+                .confirmationDialog(
+                    "Restore every setting to its factory value?",
+                    isPresented: $confirmingReset
+                ) {
+                    Button("Restore Factory Settings", role: .destructive) {
+                        preferences.restoreFactorySettings()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Appearance, sound and behaviour all go back to how they arrived. "
+                         + "Whether the lock is switched on and whether ClickLocker opens at "
+                         + "login are left as they are.")
                 }
             }
         }

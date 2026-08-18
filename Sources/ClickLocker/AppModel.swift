@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Joël in 't Veld
 
+import AppKit
 import Foundation
 import Observation
 
@@ -15,6 +16,7 @@ final class AppModel {
     let preferences: Preferences
     let permission: AccessibilityPermission
     let launchAtLogin: LaunchAtLogin
+    let updater: Updater
     private(set) var status = ClickLockStatus()
 
     @ObservationIgnored private var engine: ClickLockEngine!
@@ -25,6 +27,7 @@ final class AppModel {
         preferences = Preferences()
         permission = AccessibilityPermission()
         launchAtLogin = LaunchAtLogin()
+        updater = Updater()
 
         engine = ClickLockEngine { status in
             Task { @MainActor [weak self] in
@@ -104,6 +107,49 @@ final class AppModel {
     /// Used by the preview buttons in the settings window.
     func previewSound(named name: String) {
         sound.play(named: name, volume: preferences.soundVolume)
+    }
+
+    // MARK: - Updates
+
+    /// Runs once at launch: report a permission lost to an update, then look for
+    /// a new version if that is switched on.
+    func handleLaunch() {
+        if let outcome = updater.consumeUpdateOutcome(isTrusted: permission.isTrusted),
+           outcome.lostPermission {
+            reportPermissionLostAfterUpdate(previousVersion: outcome.previousVersion)
+        }
+
+        if preferences.checkForUpdates {
+            Task { await updater.check(automatic: true) }
+        }
+    }
+
+    func installUpdate() {
+        updater.installAndRestart(isTrusted: permission.isTrusted)
+    }
+
+    /// Only shown when the permission actually went missing. When it survived the
+    /// update there is nothing to do and nothing to click away.
+    private func reportPermissionLostAfterUpdate(previousVersion: String) {
+        let alert = NSAlert()
+        alert.messageText = "ClickLocker needs the Accessibility permission again"
+        alert.informativeText = """
+            Updating from \(previousVersion) to \(updater.currentVersion) replaced the app. macOS \
+            ties the Accessibility permission to an app's code signature, not to its name or where \
+            it lives, so the new copy counts as a different program and the permission no longer \
+            applies to it.
+
+            Open Privacy & Security → Accessibility, remove ClickLocker from the list with the – \
+            button, then add it again. Watch out for a tick that is still switched on: it points \
+            at the old signature and looks granted while it is not.
+            """
+        alert.addButton(withTitle: "Open Accessibility Settings")
+        alert.addButton(withTitle: "Later")
+
+        NSApp.activate()
+        if alert.runModal() == .alertFirstButtonReturn {
+            permission.openSystemSettings()
+        }
     }
 
     /// Keeps the engine and the ring in step with the settings and the permission.

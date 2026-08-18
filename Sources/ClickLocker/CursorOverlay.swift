@@ -10,6 +10,8 @@ struct RingStyle: Equatable {
     var thickness: CGFloat = 3
     var radius: CGFloat = 13
     var outline = true
+    /// Briefly swell the ring at the moment it locks.
+    var pulseOnLock = true
     /// How long a button must be held before the ring shows at all.
     var appearDelay: TimeInterval = 0.15
     /// Fade-in and fade-out time; zero means it simply appears.
@@ -45,6 +47,13 @@ final class CursorOverlay {
     private var isShowing = false
     /// False while a press is still shorter than `appearDelay`.
     private var revealed = false
+    /// When the current lock started, used for the swell.
+    private var lockedAt: Date?
+
+    /// How long the swell at the moment of locking lasts.
+    private static let pulseDuration: TimeInterval = 0.22
+    /// How much thicker the ring gets at the peak of that swell.
+    private static let pulseAmount: CGFloat = 0.7
     /// Guards against a finished fade-out hiding a window that is visible again.
     private var fadeGeneration = 0
 
@@ -77,6 +86,7 @@ final class CursorOverlay {
         // pull a ring back in that nobody asked for.
         isShowing = false
         revealed = false
+        lockedAt = nil
 
         guard let panel, panel.isVisible else {
             stopDisplayLink()
@@ -87,7 +97,12 @@ final class CursorOverlay {
 
     private func show(mode newMode: Mode) {
         let panel = makePanelIfNeeded()
+
+        let wasLocked = isShowing && mode == .locked
         mode = newMode
+        if newMode == .locked, !wasLocked {
+            lockedAt = Date()
+        }
 
         if !isShowing {
             isShowing = true
@@ -208,7 +223,6 @@ final class CursorOverlay {
                 fade(to: 1)
             }
             ringView.fraction = 1
-            ringView.needsDisplay = true
 
         case .holding(let started, let target):
             let elapsed = Date().timeIntervalSince(started)
@@ -218,8 +232,19 @@ final class CursorOverlay {
                 fade(to: 1)
             }
             ringView.fraction = min(elapsed / max(target, 0.01), 1)
-            ringView.needsDisplay = true
         }
+
+        // The view only redraws when one of these actually changes, so a ring
+        // sitting still costs nothing.
+        ringView.thicknessScale = pulseScale()
+    }
+
+    /// Swells from 1 to `1 + pulseAmount` and back over `pulseDuration`.
+    private func pulseScale() -> CGFloat {
+        guard style.pulseOnLock, let lockedAt else { return 1 }
+        let elapsed = Date().timeIntervalSince(lockedAt)
+        guard elapsed >= 0, elapsed < Self.pulseDuration else { return 1 }
+        return 1 + Self.pulseAmount * sin(.pi * elapsed / Self.pulseDuration)
     }
 
     private func moveToPointer() {
@@ -234,8 +259,16 @@ final class CursorOverlay {
 final class RingView: NSView {
 
     var style = RingStyle() { didSet { needsDisplay = true } }
+
     /// How much of the circle to draw, 0 through 1.
-    var fraction: Double = 1
+    var fraction: Double = 1 {
+        didSet { if fraction != oldValue { needsDisplay = true } }
+    }
+
+    /// Multiplier on the line width, driven by the swell when locking.
+    var thicknessScale: CGFloat = 1 {
+        didSet { if thicknessScale != oldValue { needsDisplay = true } }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -262,7 +295,7 @@ final class RingView: NSView {
         // A dark stroke underneath plus a soft shadow keeps a light ring readable
         // on a light background.
         if style.outline {
-            path.lineWidth = style.thickness + 3
+            path.lineWidth = thickness + 3
             NSColor.black.withAlphaComponent(0.45).setStroke()
             path.stroke()
 
@@ -280,8 +313,11 @@ final class RingView: NSView {
     }
 
     private func strokeRing(_ path: NSBezierPath) {
-        path.lineWidth = style.thickness
+        path.lineWidth = thickness
         style.color.setStroke()
         path.stroke()
     }
+
+    /// The configured width, swollen while the lock pulse runs.
+    private var thickness: CGFloat { style.thickness * thicknessScale }
 }

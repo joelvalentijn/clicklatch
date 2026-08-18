@@ -42,11 +42,17 @@ cp "$BINARY" "$APP/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-echo "==> Signing (ad hoc)"
-# No developer certificate is assumed, so the signature is ad hoc. The code hash
-# changes on every rebuild, which may make macOS ask for the Accessibility
-# permission again.
-codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none "$APP"
+IDENTITY="${CLICKLOCKER_SIGNING_IDENTITY:-ClickLocker Self-Signed}"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
+	echo "==> Signing with '$IDENTITY'"
+	codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
+else
+	echo "==> Signing ad hoc (no '$IDENTITY' certificate found)"
+	echo "    Note: the code hash changes on every rebuild, so macOS will drop the"
+	echo "    Accessibility permission each time, and the app cannot update itself."
+	echo "    Run ./Scripts/create-signing-certificate.sh to fix that once and for all."
+	codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none "$APP"
+fi
 codesign --verify --verbose=1 "$APP"
 
 TARGET="$APP"
