@@ -4,12 +4,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClickLocker",
+    name: "ClickLatch",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "ClickLocker",
-            path: "Sources/ClickLocker"
+            name: "ClickLatch",
+            path: "Sources/ClickLatch"
         )
     ]
 )

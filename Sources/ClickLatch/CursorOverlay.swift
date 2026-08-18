@@ -58,7 +58,7 @@ final class CursorOverlay {
     private var fadeGeneration = 0
 
     /// Brings the ring in line with the current state of the lock.
-    func update(status: ClickLockStatus, holdDuration: TimeInterval, style: RingStyle, enabled: Bool) {
+    func update(status: ClickLatchStatus, holdDuration: TimeInterval, style: RingStyle, enabled: Bool) {
         applyStyle(style)
 
         guard enabled else {

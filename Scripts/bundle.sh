@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Joël in 't Veld
 #
-# Builds ClickLocker and wraps the binary in a signed .app bundle.
+# Builds ClickLatch and wraps the binary in a signed .app bundle.
 #
 #   ./Scripts/bundle.sh              build and bundle into ./build
 #   ./Scripts/bundle.sh --install    also copy the app to /Applications
@@ -14,8 +14,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="ClickLocker"
-BUNDLE_ID="com.joelintveld.clicklocker"
+APP_NAME="ClickLatch"
+BUNDLE_ID="com.joelintveld.clicklatch"
 APP="$ROOT/build/$APP_NAME.app"
 CONFIG="${CONFIG:-release}"
 
@@ -43,7 +43,7 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-IDENTITY="${CLICKLOCKER_SIGNING_IDENTITY:-ClickLocker Self-Signed}"
+IDENTITY="${CLICKLATCH_SIGNING_IDENTITY:-ClickLatch Self-Signed}"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
 	echo "==> Signing with '$IDENTITY'"
 	codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" --timestamp=none "$APP"

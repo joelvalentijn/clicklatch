@@ -10,7 +10,7 @@ struct MenuBarView: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Toggle("Enable click lock", isOn: Binding(
+        Toggle("Enable ClickLatch", isOn: Binding(
             get: { model.preferences.enabled },
             set: { model.setEnabled($0) }
         ))
@@ -41,7 +41,7 @@ struct MenuBarView: View {
         }
         .keyboardShortcut(",", modifiers: .command)
 
-        Button("Quit ClickLocker") {
+        Button("Quit ClickLatch") {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)

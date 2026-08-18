@@ -74,8 +74,8 @@ private struct GeneralTab: View {
 
     var body: some View {
         Form {
-            Section("Click lock") {
-                Toggle("Enable click lock", isOn: Binding(
+            Section("ClickLatch") {
+                Toggle("Enable ClickLatch", isOn: Binding(
                     get: { preferences.enabled },
                     set: { model.setEnabled($0) }
                 ))
@@ -145,7 +145,7 @@ private struct UpdatesTab: View {
 
             Section {
                 Text("""
-                    ClickLocker checks GitHub for a newer release, downloads it and replaces \
+                    ClickLatch checks GitHub for a newer release, downloads it and replaces \
                     itself. It only installs a copy signed with the same key as the one running, \
                     so a tampered download cannot take its place.
                     """)
@@ -187,7 +187,7 @@ private struct UpdatesRows: View {
         switch model.updater.state {
         case .idle: Text("Not checked yet.")
         case .checking: Text("Checking…")
-        case .upToDate: Text("ClickLocker is up to date.")
+        case .upToDate: Text("ClickLatch is up to date.")
         case .available(let version): Text("Version \(version) is available.")
         case .downloading(let progress): Text("Downloading… \(Int(progress * 100)) %")
         case .readyToInstall(let version): Text("Version \(version) is ready to install.")
@@ -637,7 +637,7 @@ private struct AdvancedTab: View {
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text("Appearance, sound and behaviour all go back to how they arrived. "
-                         + "Whether the lock is switched on and whether ClickLocker opens at "
+                         + "Whether the lock is switched on and whether ClickLatch opens at "
                          + "login are left as they are.")
                 }
             }
@@ -660,7 +660,7 @@ private struct LaunchAtLoginRow: View {
 
         if launchAtLogin.requiresApproval {
             VStack(alignment: .leading, spacing: 6) {
-                Text("macOS still needs your approval before ClickLocker may start "
+                Text("macOS still needs your approval before ClickLatch may start "
                      + "automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -693,7 +693,7 @@ private struct PermissionBanner: View {
                 .font(.headline)
                 .foregroundStyle(.orange)
             Text("Without it no program is allowed to alter mouse clicks. Switch on "
-                 + "ClickLocker under Privacy & Security → Accessibility.")
+                 + "ClickLatch under Privacy & Security → Accessibility.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

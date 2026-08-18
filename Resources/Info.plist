@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>ClickLocker</string>
+	<string>ClickLatch</string>
 	<key>CFBundleExecutable</key>
-	<string>ClickLocker</string>
+	<string>ClickLatch</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.joelintveld.clicklocker</string>
+	<string>com.joelintveld.clicklatch</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ClickLocker</string>
+	<string>ClickLatch</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

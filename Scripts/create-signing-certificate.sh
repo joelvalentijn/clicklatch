@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Joël in 't Veld
 #
-# Creates a self-signed code signing certificate for ClickLocker.
+# Creates a self-signed code signing certificate for ClickLatch.
 #
 # Why this matters: with an ad hoc signature the app's designated requirement is
 # literally the hash of that one binary, so macOS drops the Accessibility
@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-NAME="${CLICKLOCKER_SIGNING_IDENTITY:-ClickLocker Self-Signed}"
+NAME="${CLICKLATCH_SIGNING_IDENTITY:-ClickLatch Self-Signed}"
 WORK="$(mktemp -d)"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
@@ -53,12 +53,12 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 # SHA-256, which macOS' own security tool cannot read back ("MAC verification
 # failed"). An empty password trips the same check, hence a throwaway one.
 openssl pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-	-out "$WORK/identity.p12" -passout pass:clicklocker -name "$NAME" \
+	-out "$WORK/identity.p12" -passout pass:clicklatch -name "$NAME" \
 	-keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1
 
 echo "==> Importing into the login keychain"
 # -T lets codesign use the key without asking every single time.
-security import "$WORK/identity.p12" -k "$KEYCHAIN" -P clicklocker -T /usr/bin/codesign
+security import "$WORK/identity.p12" -k "$KEYCHAIN" -P clicklatch -T /usr/bin/codesign
 
 if security find-identity -v -p codesigning | grep -q "$NAME"; then
 	echo "==> Usable for code signing straight away"
@@ -85,8 +85,8 @@ cat <<EOF
 Next: run ./Scripts/bundle.sh --install, which now picks this identity up
 automatically.
 
-One last time after that, macOS will see ClickLocker as a new program, because
-its signature genuinely changed. Remove ClickLocker from Privacy & Security ->
+One last time after that, macOS will see ClickLatch as a new program, because
+its signature genuinely changed. Remove ClickLatch from Privacy & Security ->
 Accessibility with the - button and add it again. From then on the permission
 survives rebuilds and updates.
 EOF

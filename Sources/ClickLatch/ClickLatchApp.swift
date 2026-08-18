@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct ClickLockerApp: App {
+struct ClickLatchApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = AppModel.shared

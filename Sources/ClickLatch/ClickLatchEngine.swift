@@ -5,7 +5,7 @@ import CoreGraphics
 import Foundation
 
 /// Where the lock currently stands.
-enum ClickLockPhase: Sendable, Equatable {
+enum ClickLatchPhase: Sendable, Equatable {
     /// No button held and nothing locked.
     case idle
     /// A button is physically held down; the threshold has not been reached yet.
@@ -15,8 +15,8 @@ enum ClickLockPhase: Sendable, Equatable {
 }
 
 /// Snapshot the engine hands to the interface.
-struct ClickLockStatus: Sendable {
-    var phase: ClickLockPhase = .idle
+struct ClickLatchStatus: Sendable {
+    var phase: ClickLatchPhase = .idle
     /// When the current press started; `nil` unless a button is being held.
     var pressStarted: Date?
     /// How long the last completed press lasted, in milliseconds.
@@ -50,7 +50,7 @@ struct EngineConfig: Sendable, Equatable {
 /// All event handling runs on a dedicated thread with its own run loop so a busy
 /// main thread can never make the tap time out. The main thread talks to it by
 /// scheduling blocks on that run loop.
-final class ClickLockEngine: @unchecked Sendable {
+final class ClickLatchEngine: @unchecked Sendable {
 
     private enum State {
         case idle
@@ -62,7 +62,7 @@ final class ClickLockEngine: @unchecked Sendable {
 
     private let escapeKeyCode: Int64 = 53
 
-    private let onStatus: @Sendable (ClickLockStatus) -> Void
+    private let onStatus: @Sendable (ClickLatchStatus) -> Void
 
     private let lock = NSLock()
     private var storedConfig = EngineConfig()
@@ -73,12 +73,12 @@ final class ClickLockEngine: @unchecked Sendable {
     private var source: CFRunLoopSource?
     private var state: State = .idle
     private var autoReleaseTimer: CFRunLoopTimer?
-    private var status = ClickLockStatus()
+    private var status = ClickLatchStatus()
 
     private var tapRunLoop: CFRunLoop?
     private let runLoopReady = DispatchSemaphore(value: 0)
 
-    init(onStatus: @escaping @Sendable (ClickLockStatus) -> Void) {
+    init(onStatus: @escaping @Sendable (ClickLatchStatus) -> Void) {
         self.onStatus = onStatus
         startThread()
     }
@@ -134,7 +134,7 @@ final class ClickLockEngine: @unchecked Sendable {
             }
             CFRunLoopRun()
         }
-        thread.name = "com.joelintveld.clicklocker.eventtap"
+        thread.name = "com.joelintveld.clicklatch.eventtap"
         thread.qualityOfService = .userInteractive
         thread.start()
         runLoopReady.wait()
@@ -172,11 +172,11 @@ final class ClickLockEngine: @unchecked Sendable {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
-            callback: clickLockTapCallback,
+            callback: clickLatchTapCallback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
             status.tapActive = false
-            status.failure = "Could not create an event tap. Grant ClickLocker the Accessibility "
+            status.failure = "Could not create an event tap. Grant ClickLatch the Accessibility "
                 + "permission in System Settings and try again."
             publish()
             return
@@ -414,13 +414,13 @@ final class ClickLockEngine: @unchecked Sendable {
     }
 }
 
-private func clickLockTapCallback(
+private func clickLatchTapCallback(
     proxy: CGEventTapProxy,
     type: CGEventType,
     event: CGEvent,
     refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     guard let refcon else { return Unmanaged.passUnretained(event) }
-    let engine = Unmanaged<ClickLockEngine>.fromOpaque(refcon).takeUnretainedValue()
+    let engine = Unmanaged<ClickLatchEngine>.fromOpaque(refcon).takeUnretainedValue()
     return engine.handle(type: type, event: event)
 }

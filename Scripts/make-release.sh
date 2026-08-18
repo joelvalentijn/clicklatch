@@ -6,7 +6,7 @@
 #
 #   ./Scripts/make-release.sh
 #
-# Produces build/release/ClickLocker-<version>.zip and a .sha256 next to it. The
+# Produces build/release/ClickLatch-<version>.zip and a .sha256 next to it. The
 # version comes from Resources/Info.plist, so bump it there first. Upload the zip
 # as an asset on a GitHub release whose tag matches that version.
 #
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="ClickLocker"
+APP_NAME="ClickLatch"
 OUT="$ROOT/build/release"
 
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT/Resources/Info.plist")"

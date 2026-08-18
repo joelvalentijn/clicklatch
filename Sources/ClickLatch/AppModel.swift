@@ -21,13 +21,13 @@ final class AppModel {
     let permission: AccessibilityPermission
     let launchAtLogin: LaunchAtLogin
     let updater: Updater
-    private(set) var status = ClickLockStatus()
+    private(set) var status = ClickLatchStatus()
 
     /// Which tab the settings window shows. Held here so the menu can send you
     /// straight to the right one.
     var settingsTab: SettingsTab = .general
 
-    @ObservationIgnored private var engine: ClickLockEngine!
+    @ObservationIgnored private var engine: ClickLatchEngine!
     @ObservationIgnored private let overlay = CursorOverlay()
     @ObservationIgnored private let sound = SoundFeedback()
 
@@ -37,7 +37,7 @@ final class AppModel {
         launchAtLogin = LaunchAtLogin()
         updater = Updater()
 
-        engine = ClickLockEngine { status in
+        engine = ClickLatchEngine { status in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let previousPhase = self.status.phase
@@ -103,7 +103,7 @@ final class AppModel {
 
     /// Only a real change into or out of `.locked` makes a sound — not repeated
     /// status messages carrying the same phase, and not the state at startup.
-    private func playSound(from previous: ClickLockPhase, to current: ClickLockPhase) {
+    private func playSound(from previous: ClickLatchPhase, to current: ClickLatchPhase) {
         guard preferences.soundEnabled, isRunning, previous != current else { return }
         if current == .locked {
             sound.play(named: preferences.lockSoundName, volume: preferences.soundVolume)
@@ -140,14 +140,14 @@ final class AppModel {
     /// update there is nothing to do and nothing to click away.
     private func reportPermissionLostAfterUpdate(previousVersion: String) {
         let alert = NSAlert()
-        alert.messageText = "ClickLocker needs the Accessibility permission again"
+        alert.messageText = "ClickLatch needs the Accessibility permission again"
         alert.informativeText = """
             Updating from \(previousVersion) to \(updater.currentVersion) replaced the app. macOS \
             ties the Accessibility permission to an app's code signature, not to its name or where \
             it lives, so the new copy counts as a different program and the permission no longer \
             applies to it.
 
-            Open Privacy & Security → Accessibility, remove ClickLocker from the list with the – \
+            Open Privacy & Security → Accessibility, remove ClickLatch from the list with the – \
             button, then add it again. Watch out for a tick that is still switched on: it points \
             at the old signature and looks granted while it is not.
             """

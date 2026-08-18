@@ -5,7 +5,7 @@ import AppKit
 import Foundation
 import Observation
 
-/// Downloads and installs a newer ClickLocker.
+/// Downloads and installs a newer ClickLatch.
 ///
 /// The security of this rests on one check: an update is only installed when the
 /// downloaded bundle satisfies the *running* app's designated requirement. Whoever
@@ -30,7 +30,7 @@ final class Updater {
     /// Where releases live. Overridable through the `updateFeedURL` default, which
     /// is what makes the whole chain testable before a real release exists.
     static let defaultFeedURL =
-        "https://api.github.com/repos/joelvalentijn/clicklocker/releases/latest"
+        "https://api.github.com/repos/joelvalentijn/clicklatch/releases/latest"
 
     private enum Marker {
         static let previousVersion = "updatePreviousVersion"
@@ -156,7 +156,7 @@ final class Updater {
             let unpacked = try unpack(zip: temporary)
 
             guard let app = try newestApp(in: unpacked) else {
-                state = .failed(reason: "The download did not contain a ClickLocker app.")
+                state = .failed(reason: "The download did not contain a ClickLatch app.")
                 return
             }
             guard CodeSignature.matchesRunningApp(app) else {
@@ -173,7 +173,7 @@ final class Updater {
 
     private func cacheDirectory() throws -> URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.joelintveld.clicklocker", isDirectory: true)
+            .appendingPathComponent("com.joelintveld.clicklatch", isDirectory: true)
             .appendingPathComponent("update", isDirectory: true)
         try? FileManager.default.removeItem(at: base)
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -230,7 +230,7 @@ final class Updater {
     static func launchSwapScript(replacing current: URL, with replacement: URL) throws {
         let script = """
             #!/bin/bash
-            # Written by ClickLocker to replace itself; safe to delete.
+            # Written by ClickLatch to replace itself; safe to delete.
             set -u
             while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done
 
@@ -250,7 +250,7 @@ final class Updater {
             """
 
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("clicklocker-update-\(UUID().uuidString).sh")
+            .appendingPathComponent("clicklatch-update-\(UUID().uuidString).sh")
         try script.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
 
@@ -331,7 +331,7 @@ enum CodeSignature {
         if isAdHocSigned() {
             return """
                 This copy is signed ad hoc, so its identity is the hash of this exact build and \
-                no other build can ever match it. Sign ClickLocker with a certificate \
+                no other build can ever match it. Sign ClickLatch with a certificate \
                 (Scripts/create-signing-certificate.sh) to be able to update in place.
                 """
         }
