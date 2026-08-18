@@ -40,6 +40,9 @@ final class CursorOverlay {
 
     private var style = RingStyle()
     private var mode: Mode = .locked
+    /// Whether the ring is wanted right now. Distinct from the window still being
+    /// on screen, which stays true throughout a fade-out.
+    private var isShowing = false
     /// False while a press is still shorter than `appearDelay`.
     private var revealed = false
     /// Guards against a finished fade-out hiding a window that is visible again.
@@ -69,6 +72,12 @@ final class CursorOverlay {
     }
 
     func hide(animated: Bool = true) {
+        // Clearing these first matters: the display link keeps ticking during the
+        // fade-out, and without it the reveal check below would still fire and
+        // pull a ring back in that nobody asked for.
+        isShowing = false
+        revealed = false
+
         guard let panel, panel.isVisible else {
             stopDisplayLink()
             return
@@ -78,25 +87,17 @@ final class CursorOverlay {
 
     private func show(mode newMode: Mode) {
         let panel = makePanelIfNeeded()
-        if mode != newMode {
-            // A lock arriving mid-press should not restart the reveal.
-            if case .holding = newMode, case .locked = mode { revealed = false }
-            mode = newMode
+        mode = newMode
+
+        if !isShowing {
+            isShowing = true
+            revealed = false
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
         }
 
         moveToPointer()
-        if !panel.isVisible {
-            panel.alphaValue = 0
-            revealed = false
-            panel.orderFrontRegardless()
-        }
         startDisplayLink()
-
-        // A lock is always worth showing straight away; a press has to wait.
-        if case .locked = mode, !revealed {
-            revealed = true
-            fade(to: 1)
-        }
         refresh()
     }
 
@@ -196,11 +197,19 @@ final class CursorOverlay {
     /// Recomputes how full the arc is and reveals the ring once the press has
     /// lasted longer than the configured delay.
     private func refresh() {
-        guard let ringView else { return }
+        guard isShowing, let ringView else { return }
 
         switch mode {
         case .locked:
+            // A lock is always worth showing, even if the hold was shorter than
+            // the delay.
+            if !revealed {
+                revealed = true
+                fade(to: 1)
+            }
             ringView.fraction = 1
+            ringView.needsDisplay = true
+
         case .holding(let started, let target):
             let elapsed = Date().timeIntervalSince(started)
             if !revealed {
