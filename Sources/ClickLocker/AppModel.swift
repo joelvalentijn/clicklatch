@@ -19,6 +19,7 @@ final class AppModel {
 
     @ObservationIgnored private var engine: ClickLockEngine!
     @ObservationIgnored private let overlay = CursorOverlay()
+    @ObservationIgnored private let sound = SoundFeedback()
 
     private init() {
         preferences = Preferences()
@@ -28,8 +29,10 @@ final class AppModel {
         engine = ClickLockEngine { status in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                let previousPhase = self.status.phase
                 self.status = status
                 self.updateOverlay()
+                self.playSound(from: previousPhase, to: status.phase)
             }
         }
 
@@ -82,8 +85,25 @@ final class AppModel {
         overlay.update(
             status: status,
             holdDuration: preferences.holdDuration,
+            style: preferences.ringStyle,
             enabled: isRunning && preferences.showCursorRing
         )
+    }
+
+    /// Only a real change into or out of `.locked` makes a sound — not repeated
+    /// status messages carrying the same phase, and not the state at startup.
+    private func playSound(from previous: ClickLockPhase, to current: ClickLockPhase) {
+        guard preferences.soundEnabled, isRunning, previous != current else { return }
+        if current == .locked {
+            sound.play(named: preferences.lockSoundName, volume: preferences.soundVolume)
+        } else if previous == .locked {
+            sound.play(named: preferences.releaseSoundName, volume: preferences.soundVolume)
+        }
+    }
+
+    /// Used by the preview buttons in the settings window.
+    func previewSound(named name: String) {
+        sound.play(named: name, volume: preferences.soundVolume)
     }
 
     /// Keeps the engine and the ring in step with the settings and the permission.
@@ -91,6 +111,7 @@ final class AppModel {
         withObservationTracking {
             _ = preferences.enabled
             _ = preferences.showCursorRing
+            _ = preferences.ringStyle   // reads every ring setting, so all of them are tracked
             _ = preferences.engineConfig
             _ = permission.isTrusted
         } onChange: {

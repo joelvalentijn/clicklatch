@@ -4,32 +4,51 @@
 import AppKit
 import QuartzCore
 
-/// A white ring drawn around the pointer.
+/// Everything about how the ring looks and how quickly it turns up.
+struct RingStyle: Equatable {
+    var color: NSColor = .white
+    var thickness: CGFloat = 3
+    var radius: CGFloat = 13
+    var outline = true
+    /// How long a button must be held before the ring shows at all.
+    var appearDelay: TimeInterval = 0.15
+    /// Fade-in and fade-out time; zero means it simply appears.
+    var fadeDuration: TimeInterval = 0.12
+
+    /// Room for the ring plus its outline and shadow.
+    var windowSize: CGFloat { 2 * (radius + thickness + 6) }
+}
+
+/// A ring drawn around the pointer.
 ///
-/// While a button is held the ring fills up as a progress arc towards the
-/// threshold; once locked it is a closed ring. It lives in a borderless,
-/// click-through window that follows the pointer, driven by a display link
-/// rather than by the event tap — the tap has to stay fast, and this way the arc
-/// keeps filling even when the mouse is not moving.
+/// While a button is held it fills up as a progress arc towards the threshold;
+/// once locked it is a closed ring. It lives in a borderless, click-through
+/// window that follows the pointer, driven by a display link rather than by the
+/// event tap — the tap has to stay fast, and this way the arc keeps filling even
+/// when the mouse is not moving.
 @MainActor
 final class CursorOverlay {
 
-    enum Mode: Equatable {
+    private enum Mode: Equatable {
         case holding(started: Date, target: TimeInterval)
         case locked
     }
-
-    /// Do not show anything for very short clicks.
-    static let minimumVisibleHold: TimeInterval = 0.15
-
-    private let windowSize: CGFloat = 64
 
     private var panel: NSPanel?
     private var ringView: RingView?
     private var displayLink: CADisplayLink?
 
+    private var style = RingStyle()
+    private var mode: Mode = .locked
+    /// False while a press is still shorter than `appearDelay`.
+    private var revealed = false
+    /// Guards against a finished fade-out hiding a window that is visible again.
+    private var fadeGeneration = 0
+
     /// Brings the ring in line with the current state of the lock.
-    func update(status: ClickLockStatus, holdDuration: TimeInterval, enabled: Bool) {
+    func update(status: ClickLockStatus, holdDuration: TimeInterval, style: RingStyle, enabled: Bool) {
+        applyStyle(style)
+
         guard enabled else {
             hide()
             return
@@ -49,28 +68,57 @@ final class CursorOverlay {
         }
     }
 
-    func hide() {
-        displayLink?.invalidate()
-        displayLink = nil
-        panel?.orderOut(nil)
+    func hide(animated: Bool = true) {
+        guard let panel, panel.isVisible else {
+            stopDisplayLink()
+            return
+        }
+        fade(to: 0, animated: animated, hideWhenDone: true)
     }
 
-    private func show(mode: Mode) {
+    private func show(mode newMode: Mode) {
         let panel = makePanelIfNeeded()
-        ringView?.mode = mode
-        ringView?.needsDisplay = true
+        if mode != newMode {
+            // A lock arriving mid-press should not restart the reveal.
+            if case .holding = newMode, case .locked = mode { revealed = false }
+            mode = newMode
+        }
 
         moveToPointer()
         if !panel.isVisible {
+            panel.alphaValue = 0
+            revealed = false
             panel.orderFrontRegardless()
         }
         startDisplayLink()
+
+        // A lock is always worth showing straight away; a press has to wait.
+        if case .locked = mode, !revealed {
+            revealed = true
+            fade(to: 1)
+        }
+        refresh()
+    }
+
+    private func applyStyle(_ newStyle: RingStyle) {
+        guard newStyle != style else { return }
+        let resized = newStyle.windowSize != style.windowSize
+        style = newStyle
+        ringView?.style = newStyle
+
+        if resized, let panel {
+            let size = NSSize(width: newStyle.windowSize, height: newStyle.windowSize)
+            panel.setContentSize(size)
+            ringView?.frame = NSRect(origin: .zero, size: size)
+            moveToPointer()
+        }
+        ringView?.needsDisplay = true
     }
 
     private func makePanelIfNeeded() -> NSPanel {
         if let panel { return panel }
 
-        let frame = NSRect(x: 0, y: 0, width: windowSize, height: windowSize)
+        let frame = NSRect(x: 0, y: 0, width: style.windowSize, height: style.windowSize)
         let panel = NSPanel(
             contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -89,11 +137,43 @@ final class CursorOverlay {
         panel.hidesOnDeactivate = false
 
         let view = RingView(frame: frame)
+        view.style = style
         panel.contentView = view
 
         self.panel = panel
         ringView = view
         return panel
+    }
+
+    /// Animates the window's opacity, or sets it outright when the fade time is
+    /// zero. The generation counter keeps a finished fade from acting on a state
+    /// that has since moved on.
+    private func fade(to alpha: CGFloat, animated: Bool = true, hideWhenDone: Bool = false) {
+        guard let panel else { return }
+        fadeGeneration += 1
+        let generation = fadeGeneration
+
+        guard animated, style.fadeDuration > 0 else {
+            panel.alphaValue = alpha
+            if hideWhenDone { finishHiding() }
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = style.fadeDuration
+            panel.animator().alphaValue = alpha
+        } completionHandler: {
+            MainActor.assumeIsolated {
+                // A newer fade means the state moved on and this one no longer applies.
+                guard self.fadeGeneration == generation, hideWhenDone else { return }
+                self.finishHiding()
+            }
+        }
+    }
+
+    private func finishHiding() {
+        panel?.orderOut(nil)
+        stopDisplayLink()
     }
 
     private func startDisplayLink() {
@@ -103,28 +183,50 @@ final class CursorOverlay {
         displayLink = link
     }
 
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
+    }
+
     @objc private func tick() {
         moveToPointer()
-        // The closed ring is static; only a filling arc needs redrawing.
-        if case .holding = ringView?.mode {
-            ringView?.needsDisplay = true
+        refresh()
+    }
+
+    /// Recomputes how full the arc is and reveals the ring once the press has
+    /// lasted longer than the configured delay.
+    private func refresh() {
+        guard let ringView else { return }
+
+        switch mode {
+        case .locked:
+            ringView.fraction = 1
+        case .holding(let started, let target):
+            let elapsed = Date().timeIntervalSince(started)
+            if !revealed {
+                guard elapsed >= style.appearDelay else { return }
+                revealed = true
+                fade(to: 1)
+            }
+            ringView.fraction = min(elapsed / max(target, 0.01), 1)
+            ringView.needsDisplay = true
         }
     }
 
     private func moveToPointer() {
         let pointer = NSEvent.mouseLocation
-        panel?.setFrameOrigin(
-            NSPoint(x: pointer.x - windowSize / 2, y: pointer.y - windowSize / 2)
-        )
+        let half = style.windowSize / 2
+        panel?.setFrameOrigin(NSPoint(x: pointer.x - half, y: pointer.y - half))
     }
 }
 
-private final class RingView: NSView {
+/// Draws the ring itself. Shared with the settings window so the live preview
+/// cannot drift away from what actually appears on screen.
+final class RingView: NSView {
 
-    var mode: CursorOverlay.Mode = .locked
-
-    private let radius: CGFloat = 13
-    private let lineWidth: CGFloat = 3
+    var style = RingStyle() { didSet { needsDisplay = true } }
+    /// How much of the circle to draw, 0 through 1.
+    var fraction: Double = 1
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -136,44 +238,41 @@ private final class RingView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        switch mode {
-        case .locked:
-            stroke(fraction: 1)
-        case .holding(let started, let target):
-            let elapsed = Date().timeIntervalSince(started)
-            guard elapsed >= CursorOverlay.minimumVisibleHold else { return }
-            stroke(fraction: min(elapsed / max(target, 0.01), 1))
-        }
-    }
-
-    /// Draws the arc twice: a dark stroke underneath plus a soft shadow keeps the
-    /// white ring readable on a light background too.
-    private func stroke(fraction: Double) {
         guard fraction > 0 else { return }
 
         let path = NSBezierPath()
         path.appendArc(
             withCenter: NSPoint(x: bounds.midX, y: bounds.midY),
-            radius: radius,
+            radius: style.radius,
             startAngle: 90,
             endAngle: 90 - 360 * fraction,
             clockwise: true
         )
         path.lineCapStyle = .round
 
-        path.lineWidth = lineWidth + 3
-        NSColor.black.withAlphaComponent(0.45).setStroke()
-        path.stroke()
+        // A dark stroke underneath plus a soft shadow keeps a light ring readable
+        // on a light background.
+        if style.outline {
+            path.lineWidth = style.thickness + 3
+            NSColor.black.withAlphaComponent(0.45).setStroke()
+            path.stroke()
 
-        NSGraphicsContext.saveGraphicsState()
-        let halo = NSShadow()
-        halo.shadowColor = NSColor.black.withAlphaComponent(0.5)
-        halo.shadowBlurRadius = 3
-        halo.shadowOffset = .zero
-        halo.set()
-        path.lineWidth = lineWidth
-        NSColor.white.setStroke()
+            NSGraphicsContext.saveGraphicsState()
+            let halo = NSShadow()
+            halo.shadowColor = NSColor.black.withAlphaComponent(0.5)
+            halo.shadowBlurRadius = 3
+            halo.shadowOffset = .zero
+            halo.set()
+            strokeRing(path)
+            NSGraphicsContext.restoreGraphicsState()
+        } else {
+            strokeRing(path)
+        }
+    }
+
+    private func strokeRing(_ path: NSBezierPath) {
+        path.lineWidth = style.thickness
+        style.color.setStroke()
         path.stroke()
-        NSGraphicsContext.restoreGraphicsState()
     }
 }

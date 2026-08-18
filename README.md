@@ -42,15 +42,36 @@ Accessibility list with **–** and add it again.
 
 ## Settings
 
-Open them from the menu bar icon.
+Open them from the menu bar icon. They are split over four tabs.
+
+**General**
 
 - **Short ↔ Long** — how long the button must be held before it locks. 200 to 2200 ms, 1000 ms by
   default. The practice pad below the slider shows a filling bar while you press and reports how
   long your last press actually was, in milliseconds.
 - **Open at login** — registers ClickLocker as a login item through `SMAppService`. macOS may ask
   you to approve it under General → Login Items.
+
+**Ring** — a live preview at the top shows every change straight away, mid-press on a dark
+background and locked on a light one.
+
 - **Show a ring around the pointer** — on by default. Turn it off for the lock without any visual
   indicator.
+- **Colour**, **Thickness** (1–8 pt) and **Size** (radius 8–30 pt).
+- **Dark outline and shadow** — on by default. It is what keeps a light ring readable on a light
+  background; without it a white ring all but disappears on a white window.
+- **Delay** — how long you have to hold before the ring turns up at all, 0 to 500 ms. Raise it if
+  ordinary clicks make it flash.
+- **Fade** — how gently it fades in and out, 0 to 400 ms. At zero it simply appears.
+
+**Sound**
+
+- **Play a sound when locking and releasing** — on by default, with a **Volume** slider.
+- Separate sounds for locking and releasing, picked from the sounds macOS itself offers, each with
+  a preview button. Defaults are Tink and Pop.
+
+**Advanced**
+
 - **Lock the right mouse button as well** — off by default; Windows only locks the primary button.
 - **Don't lock if the mouse moves while holding** — off by default. Turning it on stops a slow
   ordinary drag from locking by accident.
@@ -58,7 +79,8 @@ Open them from the menu bar icon.
   only ever examines Escape, passes everything else through untouched, and stores nothing.
 - **Release the lock automatically** — off by default; lets go after a number of seconds.
 
-With every option off the behaviour is exactly that of Windows: only the hold duration counts.
+With every option on the Advanced tab off, the behaviour is exactly that of Windows: only the hold
+duration counts.
 
 ## How it works
 
@@ -92,7 +114,9 @@ A mouse button can never be left hanging.
 Sources/ClickLocker/
   ClickLockerApp.swift           app entry point, menu bar and settings scenes
   ClickLockEngine.swift          event tap and state machine
-  CursorOverlay.swift            the ring around the pointer
+  CursorOverlay.swift            the ring around the pointer, and how it is drawn
+  ColorHex.swift                 colour ↔ hex conversion for stored settings
+  SoundFeedback.swift            the lock and release sounds
   LaunchAtLogin.swift            login item registration
   AppModel.swift                 ties settings, permission, engine and ring together
   Preferences.swift              settings in UserDefaults
