@@ -12,12 +12,34 @@ hold the button, and closes into a full ring once the button is locked.
 ## Requirements
 
 - macOS 14 or later
-- Xcode or the Xcode command line tools (for `swift build`)
+- To build it yourself: Xcode or the Xcode command line tools (for `swift build`)
 
 ## Install
 
-There is no prebuilt download. The app is signed ad hoc, and Gatekeeper refuses ad hoc signed
-apps that arrive over the internet, so building it yourself is the honest path:
+Two ways in: download a ready-made build, or compile it yourself. The download is quicker; building
+gives you an app signed with your own certificate, which the sections further down assume.
+
+### Download a build
+
+Grab `ClickLocker-<version>.zip` from the [latest release][releases], unzip it, and drag
+`ClickLocker.app` into `/Applications`.
+
+macOS will refuse to open it the first time. The build is signed, but with a self-signed
+certificate rather than an Apple-issued one and without Apple's notarisation, so Gatekeeper treats
+anything downloaded through a browser as suspect. This is expected, not a sign that something is
+wrong — clear the quarantine flag once and it opens normally from then on:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ClickLocker.app
+open /Applications/ClickLocker.app
+```
+
+If you would rather not touch Terminal: double-click the app, let macOS block it, then open System
+Settings → Privacy & Security, scroll to the note about ClickLocker and click **Open Anyway**.
+
+[releases]: https://github.com/joelvalentijn/clicklocker/releases/latest
+
+### Build from source
 
 ```bash
 git clone https://github.com/joelvalentijn/clicklocker.git
@@ -42,8 +64,10 @@ permission. Pick **Grant Accessibility permission…** from the menu bar icon, o
 Settings → Privacy & Security → Accessibility yourself and switch ClickLocker on. Then turn on
 **Enable click lock** in the same menu.
 
-Because the app is signed ad hoc, its code hash changes on every rebuild, and macOS ties the
-permission to that hash. If the lock stops working after a rebuild, remove ClickLocker from the
+macOS ties this permission to the app's code signature. A downloaded build, or one you built after
+running the certificate script, keeps the same signature across updates, so the permission sticks.
+An ad hoc build (the certificate script skipped) gets a new signature on every rebuild, and the
+permission drops with it — if the lock stops working after a rebuild, remove ClickLocker from the
 Accessibility list with **–** and add it again.
 
 ## Settings
