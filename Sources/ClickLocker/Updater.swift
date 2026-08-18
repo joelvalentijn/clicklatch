@@ -83,7 +83,11 @@ final class Updater {
             let (data, response) = try await URLSession.shared.data(for: request)
 
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                state = .failed(reason: "The update server answered with status \(http.statusCode).")
+                // A repository without any release answers 404 here, which is not
+                // an error worth alarming anyone about.
+                state = http.statusCode == 404
+                    ? .failed(reason: "No release has been published yet.")
+                    : .failed(reason: "The update server answered with status \(http.statusCode).")
                 return
             }
 

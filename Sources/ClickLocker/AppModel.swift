@@ -5,6 +5,10 @@ import AppKit
 import Foundation
 import Observation
 
+enum SettingsTab: Hashable {
+    case general, ring, sound, advanced, updates
+}
+
 /// Ties settings, permissions, the engine and the pointer ring together. One
 /// shared instance, so the menu bar and the settings window show the same thing.
 @MainActor
@@ -18,6 +22,10 @@ final class AppModel {
     let launchAtLogin: LaunchAtLogin
     let updater: Updater
     private(set) var status = ClickLockStatus()
+
+    /// Which tab the settings window shows. Held here so the menu can send you
+    /// straight to the right one.
+    var settingsTab: SettingsTab = .general
 
     @ObservationIgnored private var engine: ClickLockEngine!
     @ObservationIgnored private let overlay = CursorOverlay()

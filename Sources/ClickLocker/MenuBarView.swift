@@ -27,6 +27,9 @@ struct MenuBarView: View {
         }
 
         Button("Check for Updates…") {
+            // Pick the tab before opening: the window reopens on whichever tab
+            // was last used, which is rarely the one holding the answer.
+            model.settingsTab = .updates
             NSApp.activate()
             openSettings()
             Task { await model.updater.check() }

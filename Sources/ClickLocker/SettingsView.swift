@@ -17,15 +17,25 @@ struct SettingsView: View {
                 Divider()
             }
 
-            TabView {
+            TabView(selection: Binding(
+                get: { model.settingsTab },
+                set: { model.settingsTab = $0 }
+            )) {
                 GeneralTab()
                     .tabItem { Label("General", systemImage: "cursorarrow.click") }
+                    .tag(SettingsTab.general)
                 RingTab()
                     .tabItem { Label("Ring", systemImage: "smallcircle.circle") }
+                    .tag(SettingsTab.ring)
                 SoundTab()
                     .tabItem { Label("Sound", systemImage: "speaker.wave.2") }
+                    .tag(SettingsTab.sound)
                 AdvancedTab()
                     .tabItem { Label("Advanced", systemImage: "gearshape") }
+                    .tag(SettingsTab.advanced)
+                UpdatesTab()
+                    .tabItem { Label("Updates", systemImage: "arrow.down.circle") }
+                    .tag(SettingsTab.updates)
             }
         }
         .frame(width: 480, height: model.permission.isTrusted ? 560 : 700)
@@ -118,9 +128,30 @@ private struct GeneralTab: View {
             Section("Startup") {
                 LaunchAtLoginRow(launchAtLogin: model.launchAtLogin)
             }
+        }
+        .formStyle(.grouped)
+    }
+}
 
+// MARK: - Updates
+
+private struct UpdatesTab: View {
+
+    var body: some View {
+        Form {
             Section("Updates") {
                 UpdatesRows()
+            }
+
+            Section {
+                Text("""
+                    ClickLocker checks GitHub for a newer release, downloads it and replaces \
+                    itself. It only installs a copy signed with the same key as the one running, \
+                    so a tampered download cannot take its place.
+                    """)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .formStyle(.grouped)
