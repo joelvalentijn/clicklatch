@@ -109,21 +109,16 @@ func drawPointer(size: CGFloat, centre: CGPoint, context: CGContext) {
     let border = bordered ? height * Layout.pointerBorder : 0
     if bordered { path.lineWidth = border }
 
-    // Centre on the ink, not on the path. Those are not the same thing: the tip
-    // and the tail are sharp corners, and a mitred join runs the border well
-    // past half a line width there. Anchoring on the path bounds left the arrow
-    // sitting up and to the right of the ring's centre.
-    var ink = path.cgPath.boundingBoxOfPath
-    if bordered {
-        let stroked = path.cgPath.copy(
-            strokingWithWidth: border, lineCap: .butt, lineJoin: .miter, miterLimit: 10
-        )
-        ink = ink.union(stroked.boundingBoxOfPath)
-    }
+    // Centre on where the arrow's weight actually is, measured from the drawn
+    // pixels. Neither bounding box works: the path's ignores the border, and the
+    // ink's is stretched by the mitred spikes at the tip and the tail, which are
+    // thin and carry no visual weight. Both leave the arrow looking off-centre
+    // inside the ring.
+    let anchor = inkCentroid(of: path, border: border)
     path.transform(using: AffineTransform(
         m11: 1, m12: 0, m21: 0, m22: 1,
-        tX: centre.x - ink.midX,
-        tY: centre.y - ink.midY
+        tX: centre.x - anchor.x,
+        tY: centre.y - anchor.y
     ))
 
     if bordered {
@@ -137,6 +132,56 @@ func drawPointer(size: CGFloat, centre: CGPoint, context: CGContext) {
         NSColor.white.setFill()
         path.fill()
     }
+}
+
+/// The centre of mass of the arrow as drawn, border included, in the path's own
+/// coordinates. Rasterised rather than derived, so the border and the joins are
+/// accounted for exactly.
+func inkCentroid(of path: NSBezierPath, border: CGFloat) -> CGPoint {
+    let bounds = path.bounds.insetBy(dx: -border * 6, dy: -border * 6)
+    let side = max(Int(max(bounds.width, bounds.height)), 8)
+
+    guard let context = CGContext(
+        data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else { return CGPoint(x: path.bounds.midX, y: path.bounds.midY) }
+
+    let probe = path.copy() as! NSBezierPath
+    probe.transform(using: AffineTransform(m11: 1, m12: 0, m21: 0, m22: 1,
+                                           tX: -bounds.minX, tY: -bounds.minY))
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+    if border > 0 {
+        probe.lineWidth = border
+        NSColor.white.setStroke()
+        probe.stroke()
+    }
+    NSColor.white.setFill()
+    probe.fill()
+    NSGraphicsContext.restoreGraphicsState()
+
+    guard let data = context.data else {
+        return CGPoint(x: path.bounds.midX, y: path.bounds.midY)
+    }
+    let pixels = data.bindMemory(to: UInt8.self, capacity: side * side * 4)
+
+    var sumX: CGFloat = 0, sumY: CGFloat = 0, total: CGFloat = 0
+    for row in 0..<side {
+        for column in 0..<side {
+            let alpha = CGFloat(pixels[(row * side + column) * 4 + 3]) / 255
+            guard alpha > 0.05 else { continue }
+            // The buffer starts at the top row while drawing counts from the
+            // bottom; forgetting that mirrors the answer.
+            sumX += CGFloat(column) * alpha
+            sumY += CGFloat(side - 1 - row) * alpha
+            total += alpha
+        }
+    }
+    guard total > 0 else { return CGPoint(x: path.bounds.midX, y: path.bounds.midY) }
+
+    return CGPoint(x: sumX / total + bounds.minX, y: sumY / total + bounds.minY)
 }
 
 func renderPNG(size: CGFloat) -> Data? {
