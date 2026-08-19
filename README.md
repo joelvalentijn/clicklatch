@@ -21,7 +21,7 @@ gives you an app signed with your own certificate, which the sections further do
 
 ### Download a build
 
-Grab `ClickLatch-<version>.zip` from the [latest release][releases], unzip it, and drag
+Grab `ClickLatch.zip` from the [latest release][releases], unzip it, and drag
 `ClickLatch.app` into `/Applications`.
 
 macOS will refuse to open it the first time. The build is signed, but with a self-signed
