@@ -21,6 +21,7 @@ final class AppModel {
     let permission: AccessibilityPermission
     let launchAtLogin: LaunchAtLogin
     let updater: Updater
+    let alternatePointer: AlternatePointerActions
     private(set) var status = ClickLatchStatus()
 
     /// Which tab the settings window shows. Held here so the menu can send you
@@ -36,6 +37,7 @@ final class AppModel {
         permission = AccessibilityPermission()
         launchAtLogin = LaunchAtLogin()
         updater = Updater()
+        alternatePointer = AlternatePointerActions()
 
         engine = ClickLatchEngine { status in
             Task { @MainActor [weak self] in
@@ -48,12 +50,17 @@ final class AppModel {
         }
 
         permission.startPolling()
+        alternatePointer.startPolling()
         observeChanges()
         sync()
     }
 
-    /// The lock only runs when it is switched on *and* the permission is there.
-    var isRunning: Bool { preferences.enabled && permission.isTrusted }
+    /// The lock only runs when it is switched on, the permission is there, and
+    /// macOS' own "Alternate pointer actions" is off — ClickLatch yields to that
+    /// rather than fighting another pointer method the user turned on.
+    var isRunning: Bool {
+        preferences.enabled && permission.isTrusted && !alternatePointer.isActive
+    }
 
     /// Switches the lock on, asking for the permission first if it is missing.
     func setEnabled(_ enabled: Bool) {
@@ -67,6 +74,7 @@ final class AppModel {
         overlay.hide()
         engine.shutDown()
         permission.stopPolling()
+        alternatePointer.stopPolling()
     }
 
     /// Short description of the current state, used in the menu and the window.
@@ -79,6 +87,9 @@ final class AppModel {
         }
         if !preferences.enabled {
             return "Off"
+        }
+        if alternatePointer.isActive {
+            return "Paused — macOS “Alternate pointer actions” is on"
         }
         switch status.phase {
         case .idle: return "On — waiting for a click"
@@ -168,6 +179,7 @@ final class AppModel {
             _ = preferences.ringStyle   // reads every ring setting, so all of them are tracked
             _ = preferences.engineConfig
             _ = permission.isTrusted
+            _ = alternatePointer.isActive
         } onChange: {
             Task { @MainActor [weak self] in
                 guard let self else { return }

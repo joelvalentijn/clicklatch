@@ -87,6 +87,17 @@ private struct GeneralTab: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+                if model.alternatePointer.isActive {
+                    Label(
+                        "Paused while macOS “Alternate pointer actions” is on. ClickLatch stays "
+                        + "out of the way of that and does nothing until you turn it off.",
+                        systemImage: "pause.circle"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Section("How long do you want to hold the mouse button?") {
