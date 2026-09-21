@@ -36,7 +36,7 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT
 "$ROOT/Scripts/bundle.sh"
 
 APP="$ROOT/build/$APP_NAME.app"
-if codesign -dvv "$APP" 2>&1 | grep -q 'Signature=adhoc'; then
+if [[ "$(codesign -dvv "$APP" 2>&1)" == *"Signature=adhoc"* ]]; then
 	echo
 	echo "WARNING: this build is signed ad hoc. Nobody will be able to install it as an"
 	echo "         update, because an ad hoc identity can never match a previous build."
@@ -44,7 +44,10 @@ if codesign -dvv "$APP" 2>&1 | grep -q 'Signature=adhoc'; then
 	echo
 fi
 
-if codesign -dvv "$APP" 2>&1 | grep -q 'Authority=Developer ID Application'; then
+# Captured first: piping codesign straight into grep -q makes it die of SIGPIPE,
+# which pipefail then reports as a failed pipeline.
+SIGNATURE="$(codesign -dvv "$APP" 2>&1)"
+if [[ "$SIGNATURE" == *"Authority=Developer ID Application"* ]]; then
 	PROFILE="${CLICKLATCH_NOTARY_PROFILE:-clicklatch}"
 	echo "==> Notarising (profile '$PROFILE')"
 	NOTARY_ZIP="$(mktemp -d)/$APP_NAME.zip"
