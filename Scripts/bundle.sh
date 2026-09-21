@@ -43,12 +43,29 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-IDENTITY="${CLICKLATCH_SIGNING_IDENTITY:-ClickLatch Self-Signed}"
-if security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
+# Preference order: an Apple-issued Developer ID (the only kind other people's
+# Macs accept without a warning), then the self-signed certificate, then ad hoc.
+IDENTITY="${CLICKLATCH_SIGNING_IDENTITY:-}"
+if [[ -z "$IDENTITY" ]]; then
+	IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+		| sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)"
+fi
+if [[ -z "$IDENTITY" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -q "ClickLatch Self-Signed"; then
+	IDENTITY="ClickLatch Self-Signed"
+fi
+
+if [[ -n "$IDENTITY" ]]; then
 	echo "==> Signing with '$IDENTITY'"
-	codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
+	SIGN_ARGS=(--force --sign "$IDENTITY" --identifier "$BUNDLE_ID")
+	if [[ "$IDENTITY" == Developer\ ID\ Application:* ]]; then
+		# Notarisation requires the hardened runtime and a secure timestamp.
+		SIGN_ARGS+=(--options runtime --timestamp)
+	else
+		SIGN_ARGS+=(--timestamp=none)
+	fi
+	codesign "${SIGN_ARGS[@]}" "$APP"
 else
-	echo "==> Signing ad hoc (no '$IDENTITY' certificate found)"
+	echo "==> Signing ad hoc (no code signing certificate found)"
 	echo "    Note: the code hash changes on every rebuild, so macOS will drop the"
 	echo "    Accessibility permission each time, and the app cannot update itself."
 	echo "    Run ./Scripts/create-signing-certificate.sh to fix that once and for all."

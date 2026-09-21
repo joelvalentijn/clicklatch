@@ -9,6 +9,9 @@ ClickLatch is a background app — a menu bar icon, no Dock icon, no window in t
 A white ring around the pointer shows what is going on: it fills up as a progress arc while you
 hold the button, and closes into a full ring once the button is locked.
 
+There is a website at [clicklatch.app](https://clicklatch.app), with a demonstration you can try in
+the browser.
+
 ## Requirements
 
 - macOS 14 or later
@@ -24,18 +27,8 @@ gives you an app signed with your own certificate, which the sections further do
 Grab `ClickLatch.zip` from the [latest release][releases], unzip it, and drag
 `ClickLatch.app` into `/Applications`.
 
-macOS will refuse to open it the first time. The build is signed, but with a self-signed
-certificate rather than an Apple-issued one and without Apple's notarisation, so Gatekeeper treats
-anything downloaded through a browser as suspect. This is expected, not a sign that something is
-wrong — clear the quarantine flag once and it opens normally from then on:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/ClickLatch.app
-open /Applications/ClickLatch.app
-```
-
-If you would rather not touch Terminal: double-click the app, let macOS block it, then open System
-Settings → Privacy & Security, scroll to the note about ClickLatch and click **Open Anyway**.
+The build is signed with an Apple Developer ID certificate and notarised by Apple, so it opens
+with a normal double-click — no Terminal, no trip through System Settings.
 
 [releases]: https://github.com/joelvalentijn/clicklatch/releases/latest
 
@@ -164,8 +157,29 @@ place works within your own builds; to move to an official release, build it fro
 replace the app by hand.
 
 To publish a release: bump `CFBundleShortVersionString` in `Resources/Info.plist`, run
-`./Scripts/make-release.sh`, and upload the resulting zip as an asset on a GitHub release whose tag
-matches that version.
+`./Scripts/make-release.sh`, and upload the resulting `ClickLatch.zip` as an asset on a GitHub
+release whose tag matches that version. Keep that file name: the website links to
+`/releases/latest/download/ClickLatch.zip`, which GitHub resolves to the newest release only as
+long as the asset is called the same thing every time. The version string shown on the site is in
+`index.html` in the [website repository][site], but nothing breaks if it lags behind — the download
+itself always points at the latest release.
+
+## Website
+
+[clicklatch.app](https://clicklatch.app) has its own repository,
+[joelvalentijn/clicklatch-site][site], and is served from it by Cloudflare Pages. It is plain HTML
+with one stylesheet and one script — no framework, no build step. The page recreates the ring and
+the lock in the browser, which is the one thing a screenshot cannot show.
+
+Two things over there depend on this repository, and both are easy to break from here:
+
+- Every Download button links to `/releases/latest/download/ClickLatch.zip`, which keeps working
+  only while `Scripts/make-release.sh` names the archive exactly that.
+- The site redraws this icon twice: as vectors in its `favicon.svg`, and in AppKit in its
+  `tools/make-og-image.swift`. Both copy the geometry in `Scripts/make-icon.swift`, so changing the
+  icon means changing them too.
+
+[site]: https://github.com/joelvalentijn/clicklatch-site
 
 ## Limitations
 
